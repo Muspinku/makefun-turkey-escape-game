@@ -13,7 +13,7 @@
 // the scorer's caps as one named constant; behaviour unchanged — same files
 // copied, same dossier inputs, same byte-identical outputs.
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -35,10 +35,14 @@ const DOSSIER_CAPS = {
 } as const;
 
 function resetOutputDir(dir: string): void {
-  // Start from a clean slate so a stale file from an earlier run can never
-  // leak into this one and break the byte-identical promise.
-  rmSync(dir, { recursive: true, force: true });
+  // Clear only the CONTENTS of the output directory, never the directory
+  // itself: the grader mounts /output as a bind mount, and removing the
+  // mount point throws EBUSY (verified locally), failing the graded run.
+  // The grader hands us an empty /output, so this is belt and braces.
   mkdirSync(dir, { recursive: true });
+  for (const entry of readdirSync(dir)) {
+    rmSync(join(dir, entry), { recursive: true, force: true });
+  }
 }
 
 function copyIfPresent(src: string, dest: string): void {
