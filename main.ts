@@ -47,6 +47,9 @@ function copyIfPresent(src: string, dest: string): void {
 }
 
 resetOutputDir(out);
+if (!existsSync(join(here, 'game'))) {
+  throw new Error('game/ is missing from the repository — cannot hand in an empty game');
+}
 cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
 copyIfPresent(join(here, 'screenshots'), join(out, 'screenshots'));
 
