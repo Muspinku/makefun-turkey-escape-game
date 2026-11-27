@@ -8,6 +8,10 @@
 // Run it twice and the two outputs are byte-identical: everything it
 // copies is a file in this repository, and the dossier is a pure function
 // of those files.
+//
+// Parent verification pass (2026-11-27): restructured into small helpers with
+// the scorer's caps as one named constant; behaviour unchanged — same files
+// copied, same dossier inputs, same byte-identical outputs.
 
 import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -17,29 +21,33 @@ import { buildDossier } from './vendor/makefun-game.ts';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-// Start from a clean slate so a stale file from an earlier run can never
-// leak into this one and break the byte-identical promise.
-rmSync(out, { recursive: true, force: true });
-mkdirSync(out, { recursive: true });
-
-cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
-mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) {
-  cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
-}
-
 // The caps are the scorer's own (reference/gate.json): only text_max_bytes
 // shapes the bytes; the others refuse an entry the scorer would refuse
 // (more than 4 screenshots or one over 256 KiB; more than 993 files in
 // game/ or 48 MiB of game files, in all, or a path under game/ over
 // 1000 bytes).
-writeFileSync(
-  join(out, 'dossier.json'),
-  buildDossier(out, {
-    text_max_bytes: 163840,
-    screenshots: { max: 4, max_bytes: 262144 },
-    game_max_files: 993,
-    game_max_bytes: 50331648,
-    game_path_max_bytes: 1000,
-  }),
-);
+const DOSSIER_CAPS = {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  game_max_files: 993,
+  game_max_bytes: 50331648,
+  game_path_max_bytes: 1000,
+} as const;
+
+function resetOutputDir(dir: string): void {
+  // Start from a clean slate so a stale file from an earlier run can never
+  // leak into this one and break the byte-identical promise.
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+}
+
+function copyIfPresent(src: string, dest: string): void {
+  mkdirSync(dest, { recursive: true });
+  if (existsSync(src)) cpSync(src, dest, { recursive: true });
+}
+
+resetOutputDir(out);
+cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
+copyIfPresent(join(here, 'screenshots'), join(out, 'screenshots'));
+
+writeFileSync(join(out, 'dossier.json'), buildDossier(out, DOSSIER_CAPS));
